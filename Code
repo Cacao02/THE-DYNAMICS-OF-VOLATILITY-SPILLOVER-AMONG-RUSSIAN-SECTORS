@@ -1,0 +1,1165 @@
+# Libraries BEKK-GARCH, DCC-GARCH ####
+library(PortfolioAnalytics)
+library(ROI)
+library(ROI.plugin.glpk)
+library(DEoptim)
+library(PortfolioAnalytics)
+library(ROI.plugin.quadprog)
+library(ahpsurvey)
+library(officer)
+library(FactoMineR)
+library(factoextra)
+library(ggthemes)
+library(tidyquant)
+# library(qrcode)
+library(tidyverse)
+library(bmgarch)
+# library(quantmod)
+library(stringr)
+library(readxl)
+library(stats)
+library(tibble)
+library(ggplot2)
+library(tidyr)
+library(dplyr)
+library(openxlsx)
+library(gridExtra)
+library(corrplot)
+library(ggcorrplot)
+library(ggstatsplot)
+library(broom)         
+library(tidyr)         
+library(TTR)
+library(vctrs)
+library(tibble)
+library(mgarchBEKK)
+library(rmgarch)
+library(tseries)
+library(BEKKs)
+library(mgarchBEKK)
+library(forecast)
+library(tseries)
+library(fGarch)
+library(rugarch)
+# library(knitr)
+# library(L1pack)
+# library(devtools)
+# library(ConnectednessApproach)
+# library(Spillover)
+library(stargazer)
+library(RColorBrewer)
+
+# Загрузка данных ####
+data_01_01_2018 <- read_excel("C:/Users/admin/Desktop/Диплом/Данные 5 лет/data_01_01_2018.xlsx", 
+                              sheet = "full_5_years", col_types = c("date", "numeric", "numeric", "numeric", 
+                                                                    "numeric", "numeric", "numeric", "numeric", "numeric"))
+MOEXCN <- na.omit(data_01_01_2018$CN)
+MOEXTL <- na.omit(data_01_01_2018$TL)
+MOEXMM <- na.omit(data_01_01_2018$MM)	
+MOEXEU <- na.omit(data_01_01_2018$EU)
+MOEXOG <- na.omit(data_01_01_2018$OG)
+MOEXCH <- na.omit(data_01_01_2018$CH)
+MOEXFN <- na.omit(data_01_01_2018$FN)
+MOEXTN <- na.omit(data_01_01_2018$TN)
+preCOVID <- read_excel("C:/Users/admin/Desktop/Диплом/Данные 5 лет/data_01_01_2018.xlsx", 
+                       sheet = "preCOVID", col_types = c("date", 
+                                                         "numeric", "numeric", "numeric", 
+                                                         "numeric", "numeric", "numeric", 
+                                                         "numeric", "numeric"))
+
+COVID <- read_excel("C:/Users/admin/Desktop/Диплом/Данные 5 лет/data_01_01_2018.xlsx", 
+                    sheet = "COVID", col_types = c("date", 
+                                                   "numeric", "numeric", "numeric", 
+                                                   "numeric", "numeric", "numeric", 
+                                                   "numeric", "numeric"))
+
+SMO <- read_excel("C:/Users/admin/Desktop/Диплом/Данные 5 лет/data_01_01_2018.xlsx", 
+                  sheet = "SMO", col_types = c("date", 
+                                               "numeric", "numeric", "numeric", 
+                                               "numeric", "numeric", "numeric", 
+                                               "numeric", "numeric"))
+
+# Анализ временных рядов ####
+## Потребительский сектор (MOEXCN) ####
+#визуальный анализ
+MOEXCN %>% tsdisplay()
+#ACF очень медленно затухает
+#визуально ряд имеет единичный корень
+adf.test(MOEXCN)
+#H0: ряд не стационарне
+#H1: ряд стационарен
+#нулевая гипотеза принимается
+#посмотрим на структуру процесса
+MOEXCN %>% diff() %>% tsdisplay()
+#что скажет автофрима?
+mod_CN <- auto.arima(MOEXCN, ic = "bic")
+summary(mod_CN)
+#есть ли гетероскедстичность?
+e <- resid(mod_CN)
+acf(e^2)
+MOEXCN_d <- MOEXCN %>% diff() %>% na.omit()
+#сделаем через другой пакет
+model <- ugarchspec(variance.model = list(garchOrder = c(1, 1)), 
+                    mean.model =    list(armaOrder = c(2, 2))) 
+mod4 <- ugarchfit(spec = model, data=MOEXCN_d) 
+mod4
+#omega - garch
+#alpha1 - коэффициент arch процесса - гетероскедастичности нет, он не значим
+#у нас alpha значима на 5% уровне, значит garch(1, 0)
+
+
+## Телекоммуникация (MOEXTL) ####
+#визуальный анализ
+MOEXTL %>% tsdisplay()
+#ACF очень медленно затухает
+#визуально ряд имеет единичный корень
+adf.test(MOEXTL)
+#H0: ряд не стационарне
+#H1: ряд стационарен
+#нулевая гипотеза принимается
+#посмотрим на структуру процесса
+MOEXTL %>% diff() %>% tsdisplay()
+#что скажет автофрима?
+mod_TL <- auto.arima(MOEXTL, ic = "bic")
+summary(mod_TL)
+#есть ли гетероскедстичность?
+e <- resid(mod_TL)
+acf(e^2)
+# визуально гетероскедстичности нет
+MOEXTL_d <- MOEXTL %>% diff() %>% na.omit()
+#сделаем через другой пакет
+model <- ugarchspec(variance.model = list(garchOrder = c(2, 1)), 
+                    mean.model =    list(armaOrder = c(2, 2))) 
+mod4 <- ugarchfit(spec = model, data=MOEXTL_d) 
+mod4
+
+
+## Металлы и добыча (MOEXMM) ####
+#визуальный анализ
+MOEXMM %>% tsdisplay()
+#ACF очень медленно затухает
+#визуально ряд имеет единичный корень
+adf.test(MOEXMM)
+#H0: ряд не стационарне
+#H1: ряд стационарен
+#нулевая гипотеза принимается
+#посмотрим на структуру процесса
+MOEXMM %>% diff() %>% tsdisplay()
+#что скажет автофрима?
+mod_MM <- auto.arima(MOEXMM, ic = "bic")
+summary(mod_MM)
+#есть ли гетероскедстичность?
+e <- resid(mod_MM)
+acf(e^2)
+# визуально гетероскедстичности нет
+MOEXMM_d <- MOEXMM %>% diff() %>% na.omit()
+#сделаем через другой паке2
+model <- ugarchspec(variance.model = list(garchOrder = c(1, 1)), 
+                    mean.model =    list(armaOrder = c(0, 2))) 
+mod4 <- ugarchfit(spec = model, data=MOEXMM_d) 
+mod4
+
+
+## Электроэнергетика (MOEXEU) ####
+#визуальный анализ
+MOEXEU %>% tsdisplay()
+#ACF очень медленно затухает
+#визуально ряд имеет единичный корень
+adf.test(MOEXEU)
+#H0: ряд не стационарне
+#H1: ряд стационарен
+#нулевая гипотеза принимается
+#посмотрим на структуру процесса
+MOEXEU %>% diff() %>% tsdisplay()
+#что скажет автофрима?
+mod_EU <- auto.arima(MOEXEU, ic = "bic")
+summary(mod_EU)
+#есть ли гетероскедстичность?
+#достанем остатки
+e <- resid(mod_EU)
+acf(e^2)
+# визуально гетероскедстичности нет
+MOEXEU_d <- MOEXEU %>% diff() %>% na.omit()
+#сделаем через другой пакет
+model <- ugarchspec(variance.model = list(garchOrder = c(2, 2)), 
+                    mean.model =    list(armaOrder = c(0, 2))) 
+mod4 <- ugarchfit(spec = model, data=MOEXEU_d) 
+mod4
+
+
+## Нефть и газ (MOEXOG) ####
+#визуальный анализ
+MOEXOG %>% tsdisplay()
+#ACF очень медленно затухает
+#визуально ряд имеет единичный корень
+adf.test(MOEXOG)
+#H0: ряд не стационарне
+#H1: ряд стационарен
+#нулевая гипотеза принимается
+#посмотрим на структуру процесса
+MOEXOG %>% diff() %>% tsdisplay()
+#что скажет автофрима?
+mod_OG <- auto.arima(MOEXOG, ic = "bic")
+summary(mod_OG)
+#есть ли гетероскедстичность?
+e <- resid(mod_OG)
+acf(e^2)
+# визуально гетероскедстичности нет
+#убедимся в этом через arch
+MOEXOG_d <- MOEXOG %>% diff() %>% na.omit()
+#сделаем через другой пакет
+model <- ugarchspec(variance.model = list(garchOrder = c(2, 2)), 
+                    mean.model =    list(armaOrder = c(0, 0))) 
+mod4 <- ugarchfit(spec = model, data=MOEXOG_d) 
+mod4
+
+
+## Химия и нефтехимия (MOEXCH) ####
+#визуальный анализ
+MOEXCH %>% tsdisplay()
+#ACF очень медленно затухает
+#визуально ряд имеет единичный корень
+adf.test(MOEXCH)
+#H0: ряд не стационарне
+#H1: ряд стационарен
+#нулевая гипотеза принимается
+#посмотрим на структуру процесса
+MOEXCH %>% diff() %>% tsdisplay()
+#что скажет автофрима?
+mod_CH <- auto.arima(MOEXCH, ic = "bic")
+summary(mod_CH)
+#есть ли гетероскедстичность?
+e <- resid(mod_CH)
+acf(e^2)
+# визуально гетероскедстичности нет
+#убедимся в этом через arch
+MOEXCH_d <- MOEXCH %>% diff() %>% na.omit()
+#сделаем через другой пакет
+model <- ugarchspec(variance.model = list(garchOrder = c(1, 2)), 
+                    mean.model =    list(armaOrder = c(0, 0))) 
+mod4 <- ugarchfit(spec = model, data=MOEXCH_d) 
+mod4
+acf(mod4@fit$residuals)
+
+
+## Финансовый сектор (MOEXFN) ####
+#визуальный анализ
+MOEXFN %>% tsdisplay()
+#ACF очень медленно затухает
+#визуально ряд имеет единичный корень
+adf.test(MOEXFN)
+#H0: ряд не стационарне
+#H1: ряд стационарен
+#нулевая гипотеза принимается
+#посмотрим на структуру процесса
+MOEXFN %>% diff() %>% tsdisplay()
+#что скажет автофрима?
+mod_FN <- auto.arima(MOEXFN, ic = "bic")
+summary(mod_FN)
+#есть ли гетероскедстичность?
+e <- resid(mod_FN)
+acf(e^2)
+# визуально гетероскедстичности нет
+#убедимся в этом через arch
+MOEXFN_d <- MOEXFN %>% diff() %>% na.omit()
+#сделаем через другой пакет
+model <- ugarchspec(variance.model = list(garchOrder = c(2, 1)), 
+                    mean.model =    list(armaOrder = c(0, 0))) 
+mod4 <- ugarchfit(spec = model, data=MOEXFN_d) 
+mod4
+
+
+## Транспорт (MOEXTN) ####
+#визуальный анализ
+MOEXTN %>% tsdisplay()
+#ACF очень медленно затухает
+#визуально ряд имеет единичный корень
+adf.test(MOEXTN)
+#H0: ряд не стационарне
+#H1: ряд стационарен
+#нулевая гипотеза принимается
+#посмотрим на структуру процесса
+MOEXTN %>% diff() %>% tsdisplay()
+#что скажет автофрима?
+mod_TN <- auto.arima(MOEXTN, ic = "bic")
+summary(mod_TN)
+#есть ли гетероскедстичность?
+e <- resid(mod_TN)
+acf(e^2)
+# визуально гетероскедстичности нет
+#убедимся в этом через arch
+MOEXTN_d <- MOEXTN %>% diff() %>% na.omit()
+#сделаем через другой пакет
+model <- ugarchspec(variance.model = list(garchOrder = c(2, 2)), 
+                    mean.model =    list(armaOrder = c(2, 0))) 
+mod4 <- ugarchfit(spec = model, data=MOEXTN_d) 
+mod4
+
+
+# Построение моделей ####
+#данные для модели
+data_dipl <- data_01_01_2018[,-1]
+returns1 <- (data_dipl[-1,]/data_dipl[-1407,] - 1)
+returns_matrix <- as.matrix(returns1)
+
+## DCC-GARCH ####
+model1=ugarchspec(mean.model = list(armaOrder=c(2,2)), 
+                  variance.model = list(garchOrder = c(1,1), model="sGARCH"),
+                  distribution.model = "norm" )
+model2=ugarchspec(mean.model = list(armaOrder=c(2,2)), 
+                  variance.model = list(garchOrder = c(2,1), model="sGARCH"),
+                  distribution.model = "norm" )
+model3=ugarchspec(mean.model = list(armaOrder=c(0,2)), 
+                  variance.model = list(garchOrder = c(1,1), model="sGARCH"),
+                  distribution.model = "norm" )
+model4=ugarchspec(mean.model = list(armaOrder=c(0,2)), 
+                  variance.model = list(garchOrder = c(2,2), model="sGARCH"),
+                  distribution.model = "norm" )
+model5=ugarchspec(mean.model = list(armaOrder=c(0,0)), 
+                  variance.model = list(garchOrder = c(2,2), model="sGARCH"),
+                  distribution.model = "norm" )
+model6=ugarchspec(mean.model = list(armaOrder=c(0,0)), 
+                  variance.model = list(garchOrder = c(1,2), model="sGARCH"),
+                  distribution.model = "norm" )
+model7=ugarchspec(mean.model = list(armaOrder=c(0,0)), 
+                  variance.model = list(garchOrder = c(2,1), model="sGARCH"),
+                  distribution.model = "norm" )
+model8=ugarchspec(mean.model = list(armaOrder=c(2,0)), 
+                  variance.model = list(garchOrder = c(2,2), model="sGARCH"),
+                  distribution.model = "norm" )
+
+modelspec=dccspec(uspec = multispec(list(model1, model2, model3, model4, model5, model6, model7, model8)), 
+                  distribution = "mvnorm")
+modelfit=dccfit(modelspec, data = returns)
+modelfit
+?dccspec
+
+dccforecast=dccforecast(modelfit, n.ahead=10)
+
+dccfor_cond_cor <- dccforecast@mforecast$R
+
+cor1 <- rcor(modelfit)
+my.date = as.Date(data_01_01_2018$Дата)
+my.date <- my.date[1:1406]
+
+par(mfrow=c(3,1))  # this creates a frame with 7 windows to be filled by plots
+plot(my.date, cor1[1,2,],main="MOEXCN and MOEXTL", type = "lm")
+plot(my.date, cor1[1,3,],main="MOEXCN and MOEXMM", type = "lm")
+plot(my.date, cor1[1,4,],main="MOEXCN and MOEXEU", type = "lm")
+
+par(mfrow=c(3,1)) 
+plot(my.date, cor1[1,5,],main="MOEXCN and MOEXOG", type = "lm")
+plot(my.date, cor1[1,6,],main="MOEXCN and MOEXCH", type = "lm")
+plot(my.date, cor1[1,7,],main="MOEXCN and MOEXFN", type = "lm")
+
+par(mfrow=c(3,1)) 
+plot(my.date, cor1[1,8,],main="MOEXCN and MOEXTN", type = "lm")
+plot(my.date, cor1[2,3,],main="MOEXTL and MOEXMM", type = "lm")
+plot(my.date, cor1[2,4,],main="MOEXTL and MOEXEU", type = "lm")
+
+par(mfrow=c(3,1)) 
+plot(my.date, cor1[2,5,],main="MOEXTL and MOEXOG", type = "lm")
+plot(my.date, cor1[2,6,],main="MOEXTL and MOEXCH", type = "lm")
+plot(my.date, cor1[2,7,],main="MOEXTL and MOEXFN", type = "lm")
+
+
+## BEKK-GARCH full ####
+# #корреляционная матрица
+# cor_mat <- cor(returns_2, method = "pearson")
+# corrplot(cor_mat, method = "number")
+# #химия слабо связана с другими переменными
+# returns_2 <- dplyr::select(returns, -MOEXCH, -MOEXMM, -MOEXCN)
+# returns_matrix <- as.matrix(returns)
+
+#обычная модель
+spec <- bekk_spec()
+objBEKK2.1 <- bekk_spec(model = list(type = "bekk", asymmetric = TRUE))
+m2.1 <- bekk_fit(objBEKK2.1, returns_matrix, QML_t_ratios = FALSE, max_iter = 50)
+summary(m2.1)
+plot(m2.1)
+
+objBEKK2.2 <- bekk_spec(model = list(type = "bekk", asymmetric = FALSE))
+m2.2 <- bekk_fit(objBEKK2.2, returns_matrix, QML_t_ratios = FALSE, max_iter = 50)
+summary(m2.2)
+plot(m2.2)
+m2.2_virf <- virf(m2.2, q = 0.25, index_series = 1,
+                  n.ahead = 1406, ci =0.9, time_shock = F)
+plot(m2.2_virf)
+
+#диагональная модель
+objBEKK2.3 <- bekk_spec(model = list(type = "dbekk", asymmetric = FALSE))
+m2.3 <- bekk_fit(objBEKK2.3, returns_matrix, QML_t_ratios = FALSE, max_iter = 50)
+summary(m2.3)
+
+objBEKK2.4 <- bekk_spec(model = list(type = "dbekk", asymmetric = TRUE))
+m2.4 <- bekk_fit(objBEKK2.4, returns_matrix, QML_t_ratios = FALSE, max_iter = 50)
+summary(m2.4)
+
+#скалярная модель
+objBEKK2.5 <- bekk_spec(model = list(type = "sbekk", asymmetric = FALSE))
+m2.5 <- bekk_fit(objBEKK2.5, returns_matrix, QML_t_ratios = FALSE, max_iter = 50)
+summary(m2.5)
+
+objBEKK2.6 <- bekk_spec(model = list(type = "sbekk", asymmetric = TRUE))
+m2.6 <- bekk_fit(objBEKK2.6, returns_matrix, QML_t_ratios = FALSE, max_iter = 50)
+summary(m2.6)
+
+#выбор модели
+logLik(m2.1, m2.2, m2.3, m2.4, m2.5, m2.6)
+stargazer(m2.1, type = "html", out = "bekk_model .html")
+
+#short-term (a matrix)
+abs(m2.1$A/m2.1$A_t)>1.96
+
+## BEKK-GARCH pre-COVID ####
+pre_COVID <- preCOVID[,-1]
+returns_pre_COVID <- (pre_COVID[-1,]/pre_COVID[-524,] - 1)
+returns_matrix_pre_COVID <- as.matrix(returns_pre_COVID)
+
+#обычная модель
+spec <- bekk_spec()
+objBEKK2.1 <- bekk_spec(model = list(type = "bekk", asymmetric = TRUE))
+m2.1_preCOVID <- bekk_fit(objBEKK2.1, returns_matrix_pre_COVID, QML_t_ratios = FALSE, max_iter = 50)
+summary(m2.1_preCOVID)
+
+objBEKK2.2 <- bekk_spec(model = list(type = "bekk", asymmetric = FALSE))
+m2.2_preCOVID <- bekk_fit(objBEKK2.2, returns_matrix_pre_COVID, QML_t_ratios = FALSE, max_iter = 50)
+summary(m2.2_preCOVID)
+
+#short-term (a matrix)
+abs(m2.1_preCOVID$A_t)>1.96
+abs(m2.1_preCOVID$B_t)>1.96
+abs(m2.1_preCOVID$G_t)>1.96
+
+
+## BEKK-GARCH COVID ####
+COVID_1 <- COVID[,-1]
+returns_COVID <- (COVID_1[-1,]/COVID_1[-522,] - 1)
+returns_matrix_COVID <- as.matrix(returns_COVID)
+
+#обычная модель
+spec <- bekk_spec()
+objBEKK2.1 <- bekk_spec(model = list(type = "bekk", asymmetric = TRUE))
+m2.1_COVID <- bekk_fit(objBEKK2.1, returns_matrix_COVID, QML_t_ratios = FALSE, max_iter = 50)
+summary(m2.1_COVID)
+
+objBEKK2.2 <- bekk_spec(model = list(type = "bekk", asymmetric = FALSE))
+m2.2_COVID <- bekk_fit(objBEKK2.2, returns_matrix_COVID, QML_t_ratios = FALSE, max_iter = 50)
+summary(m2.2_COVID)
+
+#short-term (a matrix)
+abs(m2.1_COVID$A_t)>1.96
+abs(m2.1_COVID$B_t)>1.96
+abs(m2.1_COVID$G_t)>1.96
+
+
+## BEKK-GARCH SMO ####
+SMO_1 <- SMO[,-1]
+returns_SMO <- (SMO_1[-1,]/SMO_1[-361,] - 1)
+returns_matrix_SMO <- as.matrix(returns_SMO)
+
+#обычная модель
+spec <- bekk_spec()
+objBEKK2.1 <- bekk_spec(model = list(type = "bekk", asymmetric = TRUE))
+m2.1_SMO <- bekk_fit(objBEKK2.1, returns_matrix_SMO, QML_t_ratios = FALSE, max_iter = 50)
+summary(m2.1_SMO)
+
+objBEKK2.2 <- bekk_spec(model = list(type = "bekk", asymmetric = FALSE))
+m2.2_SMO <- bekk_fit(objBEKK2.2, returns_matrix_SMO, QML_t_ratios = FALSE, max_iter = 50)
+summary(m2.2_SMO)
+
+#short-term (a matrix)
+abs(m2.1_SMO$A_t)>1.96
+abs(m2.1_SMO$B_t)>1.96
+abs(m2.1_SMO$G_t)>1.96
+
+# Описание данных. Выдачи ####
+
+Volat_spil_all <- read_excel("C:/Users/admin/Desktop/Диплом/Основная часть/Volat_spil_all.xlsx", sheet = "full")
+Volat_spil_all <- as.data.frame(Volat_spil_all)
+
+stargazer(Volat_spil_all, summary=FALSE, type="html", out = "Vol_index.html", digits = 1)
+
+adf.test(returns$MOEXCN)
+adf.test(returns$MOEXTL)
+adf.test(returns$MOEXMM)
+adf.test(returns$MOEXEU)
+adf.test(returns$MOEXOG)
+adf.test(returns$MOEXCH)
+adf.test(returns$MOEXFN)
+adf.test(returns$MOEXTN)
+
+name_index <- read_excel("C:/Users/admin/Desktop/Диплом/Volat_spil_all.xlsx", sheet = "Лист1")
+name_index <- as.data.frame(name_index)
+stargazer(name_index, type = "html", out = "name_index.html", summary = FALSE)
+data_dipl <- as.data.frame(data_01_01_2018[, 2:9])
+stargazer(returns, type = "html", out = "describtive_stat.html")
+
+BEKK_all_coef <- read_excel("C:/Users/admin/Desktop/Диплом/Основная часть/для выдач.xlsx", sheet = "Лист2")
+BEKK_all_coef <- as.data.frame(BEKK_all_coef)
+stargazer(BEKK_all_coef, type = "html", out = "BEKK_all_coef.html", summary = FALSE, digits = )
+
+million_all_coef <- read_excel("beauty.xlsx")
+million_all_coef <- as.data.frame(million_all_coef)
+stargazer(million_all_coef, type = "html", out = "million_all_coef.html", summary = FALSE, digits = 1)
+
+
+# Много моделей ####
+## 15% отклонение ####
+data <- data_01_01_2018
+data$crit_CN <- ifelse((data$CN>(mean(data$CN)*1.15)) | (data$CN<(mean(data$CN)*0.85)), 1, 0)
+data$crit_TL <- ifelse((data$TL>(mean(data$TL)*1.15)) | (data$TL<(mean(data$TL)*0.85)), 1, 0)
+data$crit_MM <- ifelse((data$MM>(mean(data$MM)*1.15)) | (data$MM<(mean(data$MM)*0.85)), 1, 0)
+data$crit_EU <- ifelse((data$EU>(mean(data$EU)*1.15)) | (data$EU<(mean(data$EU)*0.85)), 1, 0)
+data$crit_OG <- ifelse((data$OG>(mean(data$OG)*1.15)) | (data$OG<(mean(data$OG)*0.85)), 1, 0)
+data$crit_CH <- ifelse((data$CH>(mean(data$CH)*1.15)) | (data$CH<(mean(data$CH)*0.85)), 1, 0)
+data$crit_FN <- ifelse((data$FN>(mean(data$FN)*1.15)) | (data$FN<(mean(data$FN)*0.85)), 1, 0)
+data$crit_TN <- ifelse((data$TN>(mean(data$TN)*1.15)) | (data$TN<(mean(data$TN)*0.85)), 1, 0)
+
+data$clean <- ifelse((data$crit_CN == 1) & (data$crit_TL == 1) & (data$crit_EU == 1) & 
+                       (data$crit_FN == 1) & (data$crit_TN == 1) & (data$crit_MM == 1) & 
+                       (data$crit_OG == 1) & (data$crit_CH == 1), 1, 0)
+sum(data$clean)
+write.xlsx(data, file = "data_clean2.xlsx")
+data_clean2 <- read_excel("data_clean2.xlsx")
+
+## 10 наблюдений с наибольшим отклонением ####
+data1 <- data_01_01_2018
+data1$crit_CN <- ifelse((data1$CN>(mean(data1$CN)*1.195)) | (data1$CN<(mean(data1$CN)*0.805)), 1, 0)
+data1$crit_TL <- ifelse((data1$TL>(mean(data1$TL)*1.195)) | (data1$TL<(mean(data1$TL)*0.805)), 1, 0)
+data1$crit_MM <- ifelse((data1$MM>(mean(data1$MM)*1.195)) | (data1$MM<(mean(data1$MM)*0.805)), 1, 0)
+data1$crit_EU <- ifelse((data1$EU>(mean(data1$EU)*1.195)) | (data1$EU<(mean(data1$EU)*0.805)), 1, 0)
+data1$crit_OG <- ifelse((data1$OG>(mean(data1$OG)*1.195)) | (data1$OG<(mean(data1$OG)*0.805)), 1, 0)
+data1$crit_CH <- ifelse((data1$CH>(mean(data1$CH)*1.195)) | (data1$CH<(mean(data1$CH)*0.805)), 1, 0)
+data1$crit_FN <- ifelse((data1$FN>(mean(data1$FN)*1.195)) | (data1$FN<(mean(data1$FN)*0.805)), 1, 0)
+data1$crit_TN <- ifelse((data1$TN>(mean(data1$TN)*1.195)) | (data1$TN<(mean(data1$TN)*0.805)), 1, 0)
+
+data1$clean <- ifelse((data1$crit_CN == 1) & (data1$crit_TL == 1) & (data1$crit_EU == 1) & 
+                       (data1$crit_FN == 1) & (data1$crit_TN == 1) & (data1$crit_MM == 1) & 
+                       (data1$crit_OG == 1) & (data1$crit_CH == 1), 1, 0)
+sum(data1$clean)
+write.xlsx(data1, file = "data1_clean2.xlsx")
+data1_clean2 <- read_excel("data1_clean2.xlsx")
+
+
+# Графики ####
+tvp <- read_excel("barplots.xlsx", sheet = "Лист1")
+
+tvp_graph <- ggplot(tvp, aes (fill=as.character(Шаг), y=VS, x=Отрасль)) +
+  geom_bar(position='dodge', stat='identity', colour = "black") +
+  theme_classic() + 
+  labs(fill = "Горизонт прогноза",
+       y="ИЧПВ") +
+  theme(legend.position="bottom",
+        text=element_text(size=13),
+        legend.text = element_text(size=11),
+        legend.title = element_text(size=13),
+        axis.text = element_text(size=13, color = "black"),
+        axis.title =element_text(size=13))+
+  scale_fill_grey(breaks=c('1', '3', '5', '9'), name = "Горизонт прогноза", labels=c("1 шаг", "3 шага","5 шагов","10 шагов")) 
+tvp_graph
+
+var <- read_excel("barplots.xlsx", sheet = "Лист2")
+
+var_graph <- ggplot(var, aes (fill=as.character(Шаг), y=VS, x=Отрасль)) +
+  geom_bar(position='dodge', stat='identity', colour = "black") +
+  theme_classic() + 
+  labs(fill = "Горизонт прогноза",
+       x="Отраслевой индекс",
+       y="ИЧПВ") +
+  theme(legend.position="bottom",
+        text=element_text(size=13),
+        legend.text = element_text(size=11),
+        legend.title = element_text(size=13),
+        axis.text = element_text(size=13, color = "black"),
+        axis.title =element_text(size=13))+
+  scale_fill_grey(breaks=c('1', '3', '5', '9'), name = "Горизонт прогноза", labels=c("1 шаг", "3 шага","5 шагов","10 шагов")) 
+var_graph
+
+library(ggpubr)
+all <- ggarrange(tvp_graph, var_graph,
+          labels = c("   TVP-VAR ", 
+                     "      VAR "),
+          ncol = 1, nrow = 2,
+          common.legend = TRUE,
+          legend = "bottom",
+          font.label = list(face = "bold", size = 14))
+all
+annotate_figure(all,
+                top = text_grob("ИЧПВ между отраслевыми индексами
+в зависимости от прогнозного периода, расчитанный на основе:
+                                                                ", 
+                                color = "black", face = "bold", size = 14))
+
+
+# Libraries Diebold-Yilmaz####
+library(Spillover)
+library(dplyr)
+library(ggplot2)
+library(readxl)
+library(knitr)
+library(L1pack)
+library(devtools)
+library(ConnectednessApproach)
+library(igraph)
+
+# Красивый график ####
+a <- function (dca, method = "NPDC", path = NULL, name_length = NULL, 
+               threshold = 0.25, ...) 
+{
+  if (!is.null(path)) {
+    if (!dir.exists(path)) {
+      dir.create(path)
+    }
+  }
+  if (method == "NPDC") {
+    x = dca$NPDC
+  }
+  else if (method == "PCI") {
+    x = dca$PCI
+  }
+  else {
+    stop("This method does not exists")
+  }
+  date = as.Date(dimnames(x)[[3]])
+  t = length(date)
+  k = ncol(x)
+  NAMES = dimnames(x)[[1]]
+  if (is.null(NAMES)) {
+    NAMES = 1:k
+  }
+  else {
+    NAMES = colnames(x)
+    if (!is.null(name_length)) {
+      NAMES = substr(NAMES, 1, name_length)
+    }
+  }
+  oldpar = par(no.readonly = TRUE)
+  on.exit(par(oldpar))
+  if (length(dim(x)) > 3) {
+    kk = dim(x)[4]
+    k1 = ceiling(sqrt(kk))
+    k2 = ceiling(kk/k1)
+  }
+  else {
+    kk = k1 = k2 = 1
+    x = array(x, c(k, k, t, 1))
+  }
+  par(mfrow = c(k1, k2), oma = c(0, 0, 0, 0), mar = c(0, 0, 
+                                                      0, 0), mgp = c(0, 0, 0))
+  if (!is.null(path)) 
+    pdf(file = paste0(path, "/NetworkPlot.pdf"), width = 10, 
+        height = 10)
+  for (ijk in 1:kk) {
+    x_ = t(apply(x[, , , ijk], 1:2, mean))
+    x_ = ifelse(x_ < 0, 0, x_)
+    colnames(x_) = rownames(x_) = NAMES
+    diag(x_) = 0
+    x_ = x_ - min(x_)
+    x_ = x_/max(x_)
+    x_[x_ < threshold] = 0
+    m = 5 * x_
+    if (isTRUE(all.equal(x_, t(x_)))) {
+      gr = graph.adjacency(m, mode = "undirected", weighted = TRUE)
+      lo = layout_in_circle(gr)
+      net = graph.adjacency(m, mode = "undirected", weighted = TRUE, 
+                            diag = FALSE)
+      color = rep("gray66", k)
+      nn = 1
+    }
+    else {
+      gr = graph.adjacency(m, mode = "undirected", weighted = TRUE)
+      lo = layout_in_circle(gr)
+      net = graph.adjacency(m, mode = "directed", weighted = TRUE, 
+                            diag = FALSE)
+      color = rep("gray70", k)
+      nn = apply(x[, , , ijk], 1, sum)
+      color[nn > 0] = "gray43"
+      nn = abs(nn/max(abs(nn)))
+    }
+    plot.igraph(net, vertex.label = V(net)$name, layout = lo, 
+                vertex.label.cex = 1.45, vertex.size = 15 + nn * 
+                  25, vertex.color = color, vertex.frame.color = "gray28", 
+                vertex.label.color = "black", mark.col = "gray70", 
+                edge.width = E(net)$weight*1.25, edge.color = "gray28", 
+                edge.arrow.size = 1, edge.curved = 0, lty = 2)
+  }
+  if (!is.null(path)) 
+    dev.off()
+}
+
+# Data full ####
+data_01_01_2018 <- read_excel("data_01_01_2018.xlsx", 
+                              sheet = "full_5_years", col_types = c("date", 
+                                                                    "numeric", "numeric", "numeric", 
+                                                                    "numeric", "numeric", "numeric", 
+                                                                    "numeric", "numeric"))
+data_2018 <- as.data.frame(data_01_01_2018)
+data_2018$Date <- as.factor(data_2018$Date)
+zoo2018 <- zoo(x=data_2018[,-1], order.by=data_2018$Date)
+
+## Data preCOVID ####
+preCOVID <- read_excel("data_01_01_2018.xlsx", 
+                       sheet = "preCOVID", col_types = c("date", 
+                                                         "numeric", "numeric", "numeric", 
+                                                         "numeric", "numeric", "numeric", 
+                                                         "numeric", "numeric"))
+pre_COVID <- as.data.frame(preCOVID)
+pre_COVID$Date <- as.factor(pre_COVID$Date)
+
+## Data COVID ####
+COVID <- read_excel("data_01_01_2018.xlsx", 
+                    sheet = "COVID", col_types = c("date", 
+                                                   "numeric", "numeric", "numeric", 
+                                                   "numeric", "numeric", "numeric", 
+                                                   "numeric", "numeric"))
+COVID_1 <- as.data.frame(COVID)
+COVID_1$Date <- as.factor(COVID_1$Date)
+
+## Data SMO ####
+SMO <- read_excel("data_01_01_2018.xlsx", 
+                  sheet = "SMO", col_types = c("date", 
+                                               "numeric", "numeric", "numeric", 
+                                               "numeric", "numeric", "numeric", 
+                                               "numeric", "numeric"))
+SMO_1 <- as.data.frame(SMO)
+SMO_1$Date <- as.factor(SMO_1$Date)
+
+# Потоки волатильности (Граф) ####
+# zoo2018 <- zoo(x=data_2018[,-1], order.by=data_2018$Date)
+# dca = ConnectednessApproach(zoo2018, nlag=8, nfore=10)
+# PlotNetwork(dca, method="NPDC")
+# PlotNetwork(dca, method="PCI")
+
+zoo_preCOVID <- zoo(x=pre_COVID[,-1], order.by=pre_COVID$Date)
+dca_pre_COVID = ConnectednessApproach(zoo_preCOVID, nlag=8, nfore=10)
+PlotNetwork(dca_pre_COVID, method="NPDC")
+# PlotNetwork(dca_pre_COVID, method="PCI")
+
+zoo_COVID <- zoo(x=COVID_1[,-1], order.by=COVID_1$Date)
+dca_COVID = ConnectednessApproach(zoo_COVID, nlag=8, nfore=10)
+PlotNetwork(dca_COVID, method="NPDC")
+# PlotNetwork(dca_COVID, method="PCI")
+
+zoo_SMO <- zoo(x=SMO_1[,-1], order.by=SMO_1$Date)
+dca_SMO = ConnectednessApproach(zoo_SMO, nlag=8, nfore=10)
+PlotNetwork(dca_SMO, method="NPDC")
+# PlotNetwork(dca_SMO, method="PCI")
+
+
+par(mfrow=c(2,2), mar=c(1,1,1,1))
+PlotNetwork(dca_pre_COVID, method="NPDC")
+PlotNetwork(dca_COVID, method="NPDC")
+PlotNetwork(dca_SMO, method="NPDC")
+
+
+# НОВЫЕ МОДЕЛИ ####
+?ConnectednessApproach::QVAR
+?ConnectednessApproach::TVPVAR
+?ConnectednessApproach::VAR
+?ConnectednessApproach::ElasticNetVAR
+?ConnectednessApproach::ConnectednessApproach
+?ConnectednessApproach::ConnectednessTable
+
+## Вся выборка ####
+### VAR ####
+model_var <- VAR(zoo2018, configuration = list(nlag = 1))
+model_var_preCOVID <- VAR(zoo_preCOVID, configuration = list(nlag = 1))
+model_var_COVID <- VAR(zoo_COVID, configuration = list(nlag = 1))
+model_var_SMO <- VAR(zoo_SMO, configuration = list(nlag = 1))
+
+dca_VAR = ConnectednessApproach(zoo2018, nlag=1, nfore=10, model="VAR", connectedness="Time")
+dca_VAR_preCOVID = ConnectednessApproach(zoo_preCOVID, nlag=1, nfore=10, model="VAR", connectedness="Time")
+dca_VAR_COVID = ConnectednessApproach(zoo_COVID, nlag=1, nfore=10, model="VAR", connectedness="Time")
+dca_VAR_SMO = ConnectednessApproach(zoo_SMO, nlag=1, nfore=10, model="VAR", connectedness="Time")
+
+### QVAR 10-25-50-75-90 ####
+model_qvar1_preCOVID <- QVAR(zoo_preCOVID, configuration = list(nlag = 1, tau = 0.1))
+model_qvar25_1_preCOVID <- QVAR(zoo_preCOVID, configuration = list(nlag = 1, tau = 0.25))
+model_qvar2_preCOVID <- QVAR(zoo_preCOVID, configuration = list(nlag = 1, tau = 0.5))
+model_qvar25_3_preCOVID <- QVAR(zoo_preCOVID, configuration = list(nlag = 1, tau = 0.75))
+model_qvar3_preCOVID <- QVAR(zoo_preCOVID, configuration = list(nlag = 1, tau = 0.9))
+
+model_qvar1_COVID <- QVAR(zoo_COVID, configuration = list(nlag = 1, tau = 0.1))
+model_qvar25_1_COVID <- QVAR(zoo_COVID, configuration = list(nlag = 1, tau = 0.25))
+model_qvar2_COVID <- QVAR(zoo_COVID, configuration = list(nlag = 1, tau = 0.5))
+model_qvar25_3_COVID <- QVAR(zoo_COVID, configuration = list(nlag = 1, tau = 0.75))
+model_qvar3_COVID <- QVAR(zoo_COVID, configuration = list(nlag = 1, tau = 0.9))
+
+model_qvar1_SMO <- QVAR(zoo_SMO, configuration = list(nlag = 1, tau = 0.1))
+model_qvar25_1_SMO <- QVAR(zoo_SMO, configuration = list(nlag = 1, tau = 0.25))
+model_qvar2_SMO <- QVAR(zoo_SMO, configuration = list(nlag = 1, tau = 0.5))
+model_qvar25_3_SMO <- QVAR(zoo_SMO, configuration = list(nlag = 1, tau = 0.75))
+model_qvar3_SMO <- QVAR(zoo_SMO, configuration = list(nlag = 1, tau = 0.9))
+
+dca_QVAR1 = ConnectednessApproach(zoo2018, nlag=1, nfore=10, model="QVAR", connectedness="Time",
+                                  VAR_config=list(QVAR = list(tau = 0.1)))
+dca_QVAR3 = ConnectednessApproach(zoo2018, nlag=1, nfore=10, model="QVAR", connectedness="Time",
+                                  VAR_config=list(QVAR = list(tau = 0.5)))
+dca_QVAR5 = ConnectednessApproach(zoo2018, nlag=1, nfore=10, model="QVAR", connectedness="Time",
+                                  VAR_config=list(QVAR = list(tau = 0.9)))
+dca_QVAR2 = ConnectednessApproach(zoo2018, nlag=1, nfore=10, model="QVAR", connectedness="Time",
+                                  VAR_config=list(QVAR = list(tau = 0.25)))
+dca_QVAR4 = ConnectednessApproach(zoo2018, nlag=1, nfore=10, model="QVAR", connectedness="Time",
+                                  VAR_config=list(QVAR = list(tau = 0.75)))
+
+dca_QVAR_preCOVID1 = ConnectednessApproach(zoo_preCOVID, nlag=1, nfore=10, model="QVAR", connectedness="Time",
+                                           VAR_config=list(QVAR = list(tau = 0.1)))
+dca_QVAR_preCOVID3 = ConnectednessApproach(zoo_preCOVID, nlag=1, nfore=10, model="QVAR", connectedness="Time",
+                                           VAR_config=list(QVAR = list(tau = 0.5)))
+dca_QVAR_preCOVID5 = ConnectednessApproach(zoo_preCOVID, nlag=1, nfore=10, model="QVAR", connectedness="Time",
+                                           VAR_config=list(QVAR = list(tau = 0.9)))
+dca_QVAR_preCOVID2 = ConnectednessApproach(zoo_preCOVID, nlag=1, nfore=10, model="QVAR", connectedness="Time",
+                                           VAR_config=list(QVAR = list(tau = 0.25)))
+dca_QVAR_preCOVID4 = ConnectednessApproach(zoo_preCOVID, nlag=1, nfore=10, model="QVAR", connectedness="Time",
+                                           VAR_config=list(QVAR = list(tau = 0.75)))
+
+dca_QVAR_COVID1 = ConnectednessApproach(zoo_COVID, nlag=1, nfore=10, model="QVAR", connectedness="Time",
+                                        VAR_config=list(QVAR = list(tau = 0.1)))
+dca_QVAR_COVID3 = ConnectednessApproach(zoo_COVID, nlag=1, nfore=10, model="QVAR", connectedness="Time",
+                                        VAR_config=list(QVAR = list(tau = 0.5)))
+dca_QVAR_COVID5 = ConnectednessApproach(zoo_COVID, nlag=1, nfore=10, model="QVAR", connectedness="Time",
+                                        VAR_config=list(QVAR = list(tau = 0.9)))
+dca_QVAR_COVID2 = ConnectednessApproach(zoo_COVID, nlag=1, nfore=10, model="QVAR", connectedness="Time",
+                                        VAR_config=list(QVAR = list(tau = 0.25)))
+dca_QVAR_COVID4 = ConnectednessApproach(zoo_COVID, nlag=1, nfore=10, model="QVAR", connectedness="Time",
+                                        VAR_config=list(QVAR = list(tau = 0.75)))
+
+dca_QVAR_SMO1 = ConnectednessApproach(zoo_SMO, nlag=1, nfore=10, model="QVAR", connectedness="Time",
+                                      VAR_config=list(QVAR = list(tau = 0.1)))
+dca_QVAR_SMO3 = ConnectednessApproach(zoo_SMO, nlag=1, nfore=10, model="QVAR", connectedness="Time",
+                                      VAR_config=list(QVAR = list(tau = 0.5)))
+dca_QVAR_SMO5 = ConnectednessApproach(zoo_SMO, nlag=1, nfore=10, model="QVAR", connectedness="Time",
+                                      VAR_config=list(QVAR = list(tau = 0.9)))
+dca_QVAR_SMO2 = ConnectednessApproach(zoo_SMO, nlag=1, nfore=10, model="QVAR", connectedness="Time",
+                                      VAR_config=list(QVAR = list(tau = 0.25)))
+dca_QVAR_SMO4 = ConnectednessApproach(zoo_SMO, nlag=1, nfore=10, model="QVAR", connectedness="Time",
+                                      VAR_config=list(QVAR = list(tau = 0.75)))
+
+### ElasticNetVAR ####
+model_ridge_preCOVID <- ElasticNetVAR(zoo_preCOVID, configuration=list(nlag=1, alpha=0, nfolds=10, loss="mae"))
+model_ridge_COVID <- ElasticNetVAR(zoo_COVID, configuration=list(nlag=1, alpha=0, nfolds=10, loss="mae"))
+model_ridge_SMO <- ElasticNetVAR(zoo_SMO, configuration=list(nlag=1, alpha=0, nfolds=10, loss="mae"))
+model_ridge <- ElasticNetVAR(zoo2018, configuration=list(nlag=1, alpha=0, nfolds=10, loss="mae"))
+
+dca_ridge_preCOVID = ConnectednessApproach(zoo_preCOVID, nlag=1, nfore=10, model="Ridge", connectedness="Time",
+                                           VAR_config=list(ElasticNet = list(nfolds = 10, alpha = 0, loss = "mae", delta_alpha = 0.1)))
+dca_ridge_COVID = ConnectednessApproach(zoo_COVID, nlag=1, nfore=10, model="Ridge", connectedness="Time",
+                                        VAR_config=list(ElasticNet = list(nfolds = 10, alpha = 0, loss = "mae", delta_alpha = 0.1)))
+dca_ridge_SMO = ConnectednessApproach(zoo_SMO, nlag=1, nfore=10, model="Ridge", connectedness="Time",
+                                      VAR_config=list(ElasticNet = list(nfolds = 10, alpha = 0, loss = "mae", delta_alpha = 0.1)))
+dca_ridge = ConnectednessApproach(zoo2018, nlag=1, nfore=10, model="Ridge", connectedness="Time",
+                                  VAR_config=list(ElasticNet = list(nfolds = 10, alpha = 0, loss = "mae", delta_alpha = 0.1)))
+
+
+### TVP-VAR ####
+prior1 <- BayesPrior(zoo_preCOVID, nlag=1)
+model_tvpvar_preCOVID <- TVPVAR(zoo_preCOVID, configuration=list(nlag=1, prior=prior1, l=c(0.99,0.99)))
+
+prior2 <- BayesPrior(zoo_COVID, nlag=1)
+model_tvpvar_COVID <- TVPVAR(zoo_COVID, configuration=list(nlag=1, prior=prior2, l=c(0.99,0.99)))
+
+prior3 <- BayesPrior(zoo_SMO, nlag=1)
+model_tvpvar_SMO <- TVPVAR(zoo_SMO, configuration=list(nlag=1, prior=prior3, l=c(0.99,0.99)))
+
+# prior <- BayesPrior(zoo2018, nlag=1)
+# model_tvpvar1 <- TVPVAR(zoo2018, configuration=list(nlag=1, prior=prior, l=c(0.99,0.99)))
+#не строится, слишком много наблюдений
+
+dca_TVP_preCOVID = ConnectednessApproach(zoo_preCOVID, nlag=1, nfore=10, model="TVP-VAR", connectedness="Time",
+                                         VAR_config=list(TVPVAR=list(kappa1=0.99, kappa2=0.99, prior = "BayesPrior", gamma = 0.01)))
+dca_TVP_COVID = ConnectednessApproach(zoo_COVID, nlag=1, nfore=10, model="TVP-VAR", connectedness="Time",
+                                      VAR_config=list(TVPVAR=list(kappa1=0.99, kappa2=0.99, prior = "BayesPrior", gamma = 0.01)))
+dca_TVP_SMO = ConnectednessApproach(zoo_SMO, nlag=1, nfore=10, model="TVP-VAR", connectedness="Time",
+                                    VAR_config=list(TVPVAR=list(kappa1=0.99, kappa2=0.99, prior = "BayesPrior", gamma = 0.01)))
+
+
+### Выдачи моделей на изначальной выборке ####
+dca_QVAR1$TABLE
+dca_QVAR2$TABLE
+dca_QVAR3$TABLE
+dca_QVAR4$TABLE
+dca_QVAR5$TABLE
+
+dca_ridge$TABLE
+dca_ridge_preCOVID$TABLE
+dca_ridge_COVID$TABLE
+dca_ridge_SMO$TABLE
+
+dca_TVP_preCOVID$TABLE
+dca_TVP_COVID$TABLE
+dca_TVP_SMO$TABLE
+
+dca_QVAR_preCOVID1$TABLE
+dca_QVAR_preCOVID2$TABLE
+dca_QVAR_preCOVID3$TABLE
+dca_QVAR_preCOVID4$TABLE
+dca_QVAR_preCOVID5$TABLE
+
+dca_QVAR_COVID1$TABLE
+dca_QVAR_COVID2$TABLE
+dca_QVAR_COVID3$TABLE
+dca_QVAR_COVID4$TABLE
+dca_QVAR_COVID5$TABLE
+
+dca_QVAR_SMO1$TABLE
+dca_QVAR_SMO2$TABLE
+dca_QVAR_SMO3$TABLE
+dca_QVAR_SMO4$TABLE
+dca_QVAR_SMO5$TABLE
+
+dca_VAR$TABLE
+dca_VAR_preCOVID$TABLE
+dca_VAR_COVID$TABLE
+dca_VAR_SMO$TABLE
+
+#### Что внутри моделей ####
+model_var$B
+model_qvar1$B
+model_ridge$B
+model_tvpvar_preCOVID$B_t
+
+#VAR vs RIDGE
+round((model_var$B-model_ridge$B)/model_var$B,2)
+round((model_var_preCOVID$B-model_ridge_preCOVID$B)/model_var_preCOVID$B,2)
+round((model_var_COVID$B-model_ridge_COVID$B)/model_var_COVID$B,2)
+round((model_var_SMO$B-model_ridge_SMO$B)/model_var_SMO$B,2)
+
+#VAR vs QVAR
+round((model_var$B-model_qvar1$B)/model_var$B,2)
+round((model_var$B-model_qvar25_1$B)/model_var$B,2)
+round((model_var$B-model_qvar2$B)/model_var$B,2)
+round((model_var$B-model_qvar3$B)/model_var$B,2)
+round((model_var$B-model_qvar25_3$B)/model_var$B,2)
+
+round((model_var$B-model_qvar1_preCOVID$B)/model_var$B,2)
+round((model_var$B-model_qvar25_1_preCOVID$B)/model_var$B,2)
+round((model_var$B-model_qvar2_preCOVID$B)/model_var$B,2)
+round((model_var$B-model_qvar3_preCOVID$B)/model_var$B,2)
+round((model_var$B-model_qvar25_3_preCOVID$B)/model_var$B,2)
+
+round((model_var$B-model_qvar1_COVID$B)/model_var$B,2)
+round((model_var$B-model_qvar25_1_COVID$B)/model_var$B,2)
+round((model_var$B-model_qvar2_COVID$B)/model_var$B,2)
+round((model_var$B-model_qvar3_COVID$B)/model_var$B,2)
+round((model_var$B-model_qvar25_3_COVID$B)/model_var$B,2)
+
+round((model_var$B-model_qvar1_SMO$B)/model_var$B,2)
+round((model_var$B-model_qvar25_1_SMO$B)/model_var$B,2)
+round((model_var$B-model_qvar2_SMO$B)/model_var$B,2)
+round((model_var$B-model_qvar3_SMO$B)/model_var$B,2)
+round((model_var$B-model_qvar25_3_SMO$B)/model_var$B,2)
+
+#VAR vs TVP-VAR
+round((model_var_preCOVID$B-model_tvpvar_preCOVID$B_t[, ,524])/model_var_preCOVID$B,2)
+round((model_var_COVID$B-model_tvpvar_COVID$B_t[, ,522])/model_var_COVID$B,2)
+round((model_var_SMO$B-model_tvpvar_SMO$B_t[, ,361])/model_var_SMO$B,2)
+
+## Чистые данные (15%) ####
+data_full_clean <- read_excel("data_clean2.xlsx", col_types = c("date", 
+                                                                "numeric", "numeric", "numeric", 
+                                                                "numeric", "numeric", "numeric", 
+                                                                "numeric", "numeric"))
+data_full_clean <- as.data.frame(data_full_clean)
+data_full_clean$Date <- as.factor(data_full_clean$Date)
+zoo2018clean <- zoo(x=data_full_clean[,-1], order.by=data_full_clean$Date)
+
+
+### VAR ####
+model_var <- VAR(zoo2018clean, configuration = list(nlag = 1))
+dca_clean_VAR_1 = ConnectednessApproach(zoo2018clean, nlag=1, nfore=1, model="VAR", connectedness="Time")
+dca_clean_VAR_3 = ConnectednessApproach(zoo2018clean, nlag=1, nfore=3, model="VAR", connectedness="Time")
+dca_clean_VAR_5 = ConnectednessApproach(zoo2018clean, nlag=1, nfore=5, model="VAR", connectedness="Time")
+dca_clean_VAR_10 = ConnectednessApproach(zoo2018clean, nlag=1, nfore=10, model="VAR", connectedness="Time")
+
+
+### QVAR 10-25-50-75-90 ####
+model_qvar1_clean <- QVAR(zoo2018clean, configuration = list(nlag = 1, tau = 0.1))
+model_qvar25_1_clean <- QVAR(zoo2018clean, configuration = list(nlag = 1, tau = 0.25))
+model_qvar2_clean <- QVAR(zoo2018clean, configuration = list(nlag = 1, tau = 0.5))
+model_qvar25_3_clean <- QVAR(zoo2018clean, configuration = list(nlag = 1, tau = 0.75))
+model_qvar3_clean <- QVAR(zoo2018clean, configuration = list(nlag = 1, tau = 0.9))
+
+dca_clean_QVAR1 = ConnectednessApproach(zoo2018clean, nlag=1, nfore=10, model="QVAR", connectedness="Time",
+                                        VAR_config=list(QVAR = list(tau = 0.1)))
+dca_clean_QVAR2 = ConnectednessApproach(zoo2018clean, nlag=1, nfore=10, model="QVAR", connectedness="Time",
+                                        VAR_config=list(QVAR = list(tau = 0.25)))
+dca_clean_QVAR3 = ConnectednessApproach(zoo2018clean, nlag=1, nfore=10, model="QVAR", connectedness="Time",
+                                        VAR_config=list(QVAR = list(tau = 0.5)))
+dca_clean_QVAR4 = ConnectednessApproach(zoo2018clean, nlag=1, nfore=10, model="QVAR", connectedness="Time",
+                                        VAR_config=list(QVAR = list(tau = 0.75)))
+dca_clean_QVAR5 = ConnectednessApproach(zoo2018clean, nlag=1, nfore=10, model="QVAR", connectedness="Time",
+                                        VAR_config=list(QVAR = list(tau = 0.9)))
+
+
+### ElasticNetVAR ####
+model_ridge_clean <- ElasticNetVAR(zoo2018clean, configuration=list(nlag=1, alpha=0, nfolds=10, loss="mae"))
+dca_clean_ridge = ConnectednessApproach(zoo2018clean, nlag=1, nfore=10, model="Ridge", connectedness="Time",
+                                        VAR_config=list(ElasticNet = list(nfolds = 10, alpha = 0, loss = "mae", delta_alpha = 0.1)))
+
+
+### TVP-VAR ####
+prior <- BayesPrior(zoo2018clean, nlag=1)
+model_tvpvar_clean <- TVPVAR(zoo2018clean, configuration=list(nlag=1, prior=prior, l=c(0.99,0.99)))
+#10 forecast
+dca_clean_TVP_10 = ConnectednessApproach(zoo2018clean, nlag=1, nfore=10, model="TVP-VAR", connectedness="Time",
+                                         VAR_config=list(TVPVAR=list(kappa1=0.99, kappa2=0.99, prior = "BayesPrior", gamma = 0.01)))
+# 1 forecast
+dca_clean_TVP_1 = ConnectednessApproach(zoo2018clean, nlag=1, nfore=1, model="TVP-VAR", connectedness="Time",
+                                        VAR_config=list(TVPVAR=list(kappa1=0.99, kappa2=0.99, prior = "BayesPrior", gamma = 0.01)))
+#3 forecast
+dca_clean_TVP_3 = ConnectednessApproach(zoo2018clean, nlag=1, nfore=3, model="TVP-VAR", connectedness="Time",
+                                        VAR_config=list(TVPVAR=list(kappa1=0.99, kappa2=0.99, prior = "BayesPrior", gamma = 0.01)))
+#5 forecast
+dca_clean_TVP_5 = ConnectednessApproach(zoo2018clean, nlag=1, nfore=5, model="TVP-VAR", connectedness="Time",
+                                        VAR_config=list(TVPVAR=list(kappa1=0.99, kappa2=0.99, prior = "BayesPrior", gamma = 0.01)))
+
+### Выдачи почищенных моделей ####
+dca_clean_QVAR1$TABLE
+dca_clean_QVAR2$TABLE
+dca_clean_QVAR3$TABLE
+dca_clean_QVAR4$TABLE
+dca_clean_QVAR5$TABLE
+
+dca_clean_ridge$TABLE
+
+dca_clean_TVP_1$TABLE
+dca_clean_TVP_3$TABLE
+dca_clean_TVP_5$TABLE
+dca_clean_TVP_10$TABLE
+
+dca_clean_VAR_1$TABLE
+dca_clean_VAR_3$TABLE
+dca_clean_VAR_5$TABLE
+dca_clean_VAR_10$TABLE
+
+## Чистые данные (10 max) ####
+data1_full_clean <- read_excel("data1_clean2.xlsx", col_types = c("date", 
+                                                                  "numeric", "numeric", "numeric", 
+                                                                  "numeric", "numeric", "numeric", 
+                                                                  "numeric", "numeric"))
+data1_full_clean <- as.data.frame(data1_full_clean)
+data1_full_clean$Date <- as.factor(data1_full_clean$Date)
+zoo2018clean_1 <- zoo(x=data1_full_clean[,-1], order.by=data1_full_clean$Date)
+
+### VAR ####
+model1_var <- VAR(zoo2018clean_1, configuration = list(nlag = 1))
+dca1_clean_VAR_1 = ConnectednessApproach(zoo2018clean_1, nlag=1, nfore=1, model="VAR", connectedness="Time")
+dca1_clean_VAR_3 = ConnectednessApproach(zoo2018clean_1, nlag=1, nfore=3, model="VAR", connectedness="Time")
+dca1_clean_VAR_5 = ConnectednessApproach(zoo2018clean_1, nlag=1, nfore=5, model="VAR", connectedness="Time")
+dca1_clean_VAR_10 = ConnectednessApproach(zoo2018clean_1, nlag=1, nfore=10, model="VAR", connectedness="Time")
+
+### QVAR 10-25-50-75-90 ####
+model1_qvar1_clean <- QVAR(zoo2018clean_1, configuration = list(nlag = 1, tau = 0.1))
+model1_qvar25_1_clean <- QVAR(zoo2018clean_1, configuration = list(nlag = 1, tau = 0.25))
+model1_qvar2_clean <- QVAR(zoo2018clean_1, configuration = list(nlag = 1, tau = 0.5))
+model1_qvar25_3_clean <- QVAR(zoo2018clean_1, configuration = list(nlag = 1, tau = 0.75))
+model1_qvar3_clean <- QVAR(zoo2018clean_1, configuration = list(nlag = 1, tau = 0.9))
+
+dca1_clean_QVAR1 = ConnectednessApproach(zoo2018clean_1, nlag=1, nfore=10, model="QVAR", connectedness="Time",
+                                         VAR_config=list(QVAR = list(tau = 0.1)))
+dca1_clean_QVAR2 = ConnectednessApproach(zoo2018clean_1, nlag=1, nfore=10, model="QVAR", connectedness="Time",
+                                         VAR_config=list(QVAR = list(tau = 0.25)))
+dca1_clean_QVAR3 = ConnectednessApproach(zoo2018clean_1, nlag=1, nfore=10, model="QVAR", connectedness="Time",
+                                         VAR_config=list(QVAR = list(tau = 0.5)))
+dca1_clean_QVAR4 = ConnectednessApproach(zoo2018clean_1, nlag=1, nfore=10, model="QVAR", connectedness="Time",
+                                         VAR_config=list(QVAR = list(tau = 0.75)))
+dca1_clean_QVAR5 = ConnectednessApproach(zoo2018clean_1, nlag=1, nfore=10, model="QVAR", connectedness="Time",
+                                         VAR_config=list(QVAR = list(tau = 0.9)))
+
+### ElasticNetVAR ####
+model1_ridge_clean <- ElasticNetVAR(zoo2018clean_1, configuration=list(nlag=1, alpha=0, nfolds=10, loss="mae"))
+dca1_clean_ridge = ConnectednessApproach(zoo2018clean_1, nlag=1, nfore=10, model="Ridge", connectedness="Time",
+                                         VAR_config=list(ElasticNet = list(nfolds = 10, alpha = 0, loss = "mae", delta_alpha = 0.1)))
+
+### TVP-VAR ####
+prior <- BayesPrior(zoo2018clean_1, nlag=1)
+model1_tvpvar_clean <- TVPVAR(zoo2018clean_1, configuration=list(nlag=1, prior=prior, l=c(0.99,0.99)))
+#10 forecast
+dca1_clean_TVP_10 = ConnectednessApproach(zoo2018clean_1, nlag=1, nfore=10, model="TVP-VAR", connectedness="Time",
+                                          VAR_config=list(TVPVAR=list(kappa1=0.99, kappa2=0.99, prior = "BayesPrior", gamma = 0.01)))
+# 1 forecast
+dca1_clean_TVP_1 = ConnectednessApproach(zoo2018clean_1, nlag=1, nfore=1, model="TVP-VAR", connectedness="Time",
+                                         VAR_config=list(TVPVAR=list(kappa1=0.99, kappa2=0.99, prior = "BayesPrior", gamma = 0.01)))
+#3 forecast
+dca1_clean_TVP_3 = ConnectednessApproach(zoo2018clean_1, nlag=1, nfore=3, model="TVP-VAR", connectedness="Time",
+                                         VAR_config=list(TVPVAR=list(kappa1=0.99, kappa2=0.99, prior = "BayesPrior", gamma = 0.01)))
+#5 forecast
+dca1_clean_TVP_5 = ConnectednessApproach(zoo2018clean_1, nlag=1, nfore=5, model="TVP-VAR", connectedness="Time",
+                                         VAR_config=list(TVPVAR=list(kappa1=0.99, kappa2=0.99, prior = "BayesPrior", gamma = 0.01)))
+
+### Выдачи почищенных моделей ####
+dca1_clean_QVAR1$TABLE
+dca1_clean_QVAR2$TABLE
+dca1_clean_QVAR3$TABLE
+dca1_clean_QVAR4$TABLE
+dca1_clean_QVAR5$TABLE
+
+dca1_clean_ridge$TABLE
+
+dca1_clean_TVP_1$TABLE
+dca1_clean_TVP_3$TABLE
+dca1_clean_TVP_5$TABLE
+dca1_clean_TVP_10$TABLE
+
+dca1_clean_VAR_1$TABLE
+dca1_clean_VAR_3$TABLE
+dca1_clean_VAR_5$TABLE
+dca1_clean_VAR_10$TABLE
+
+
+# Графы чистого попарного перетока волатильности между отраслями российской экономики ####
+a(dca_clean_VAR_10, method="NPDC")
+a(dca_clean_TVP_10, method="NPDC")
+a(dca_clean_QVAR1, method="NPDC")
+a(dca_clean_QVAR2, method="NPDC")
+a(dca_clean_QVAR3, method="NPDC")
+a(dca_clean_QVAR4, method="NPDC")
+a(dca_clean_QVAR5, method="NPDC")
+
+## Data preCOVID ####
+preCOVID <- read_excel("data_3period_clean.xlsx", 
+                       sheet = "pre_COVID", col_types = c("date", 
+                                                          "numeric", "numeric", "numeric", 
+                                                          "numeric", "numeric", "numeric", 
+                                                          "numeric", "numeric"))
+pre_COVID <- as.data.frame(preCOVID)
+pre_COVID$Date <- as.factor(pre_COVID$Date)
+
+## Data COVID ####
+COVID <- read_excel("data_3period_clean.xlsx", 
+                    sheet = "COVID", col_types = c("date", 
+                                                   "numeric", "numeric", "numeric", 
+                                                   "numeric", "numeric", "numeric", 
+                                                   "numeric", "numeric"))
+COVID_1 <- as.data.frame(COVID)
+COVID_1$Date <- as.factor(COVID_1$Date)
+
+## Data SMO ####
+SMO <- read_excel("data_3period_clean.xlsx", 
+                  sheet = "SMO", col_types = c("date", 
+                                               "numeric", "numeric", "numeric", 
+                                               "numeric", "numeric", "numeric", 
+                                               "numeric", "numeric"))
+SMO_1 <- as.data.frame(SMO)
+SMO_1$Date <- as.factor(SMO_1$Date)
+
+## Потоки волатильности на подвыборках (Граф) ####
+zoo_preCOVID <- zoo(x=pre_COVID[,-1], order.by=pre_COVID$Date)
+dca_pre_COVID = ConnectednessApproach(zoo_preCOVID, nlag=1, nfore=10)
+PlotNetwork(dca_pre_COVID, method="NPDC")
+# PlotNetwork(dca_pre_COVID, method="PCI")
+
+zoo_COVID <- zoo(x=COVID_1[,-1], order.by=COVID_1$Date)
+dca_COVID = ConnectednessApproach(zoo_COVID, nlag=1, nfore=10)
+PlotNetwork(dca_COVID, method="NPDC")
+# PlotNetwork(dca_COVID, method="PCI")
+
+zoo_SMO <- zoo(x=SMO_1[,-1], order.by=SMO_1$Date)
+dca_SMO = ConnectednessApproach(zoo_SMO, nlag=8, nfore=10)
+PlotNetwork(dca_SMO, method="NPDC")
+# PlotNetwork(dca_SMO, method="PCI")
+
+a(dca_pre_COVID, method="NPDC")
+a(dca_COVID, method="NPDC")
+a(dca_SMO, method="NPDC")
